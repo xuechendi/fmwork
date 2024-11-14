@@ -1,5 +1,8 @@
 #!/usr/bin/env -S python -u
-
+import os
+os.environ['VLLM_SKIP_WARMUP'] = "true"
+os.environ['VLLM_CONTIGUOUS_PA'] = "true"
+os.environ['VLLM_PA_SOFTMAX_IMPL'] = "const"
 import argparse
 import fmwork
 import torch
@@ -33,7 +36,7 @@ def params():
     parser.add_argument('-t', '--tensor_parallel',
         type=int, required=True)
     parser.add_argument('-r', '--reps',
-        type=int, default=3)
+        type=int, default=4)
     parser.add_argument('-d', '--dtype',
         type=str, default='auto')
     parser.add_argument('-q', '--quantization',
@@ -41,9 +44,11 @@ def params():
     parser.add_argument('-k', '--kv_cache_dtype',
         type=str, default='auto')
     parser.add_argument('-u', '--gpu_memory_utilization',
-        type=float, default=0.95)
+        type=float, default=0.9)
     parser.add_argument('-e', '--enforce_eager',
         action='store_true')
+    parser.add_argument('-mss', '--num_scheduler_steps',
+        type=int, default=16)
 
     parser.parse_args(namespace=par)
 
@@ -74,6 +79,7 @@ def llm():
         quantization           = par.quantization,
         tensor_parallel_size   = par.tensor_parallel,
         trust_remote_code      = True,
+        num_scheduler_steps    = par.num_scheduler_steps,
     )
 
 def runs():
@@ -115,7 +121,7 @@ def run(input_size, output_size, batch_size):
     for rep in range(par.reps):
         fmwork.t0()
         var.llm.generate(**kwargs)
-        torch.cuda.synchronize()
+        #torch.cuda.synchronize()
         fmwork.t1(
             rep, par.reps,
             input_size, output_size, batch_size,
